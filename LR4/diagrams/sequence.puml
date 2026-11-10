@@ -1,0 +1,41 @@
+@startuml
+skinparam monochrome true
+autonumber
+
+participant "Producer #1" as P1
+participant "Semaphore (semEmpty)" as SE
+participant "Mutex (QueueLock)" as M
+participant "Shared Memory Queue" as Q
+participant "Semaphore (semFull)" as SF
+participant "Consumer #1" as C1
+
+== Добавление элемента (Producer) ==
+P1 -> SE: WaitForSingleObject(semEmpty)
+activate SE
+SE --> P1: Слот свободен (Count--)
+deactivate SE
+
+P1 -> M: WaitForSingleObject(Mutex)
+activate M
+P1 -> Q: Запись элемента по индексу tail,\ntail = (tail + 1) % Capacity,\ncount++
+P1 -> M: ReleaseMutex()
+deactivate M
+
+P1 -> SF: ReleaseSemaphore(semFull, 1)
+note right: Уведомление Consumer'а
+
+== Извлечение элемента (Consumer) ==
+C1 -> SF: WaitForSingleObject(semFull)
+activate SF
+SF --> C1: Элемент доступен (Count--)
+deactivate SF
+
+C1 -> M: WaitForSingleObject(Mutex)
+activate M
+C1 -> Q: Чтение элемента по индексу head,\nhead = (head + 1) % Capacity,\ncount--
+C1 -> M: ReleaseMutex()
+deactivate M
+
+C1 -> SE: ReleaseSemaphore(semEmpty, 1)
+note left: Освобождение слота для Producer'а
+@enduml

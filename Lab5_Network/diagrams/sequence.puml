@@ -1,0 +1,38 @@
+@startuml
+skinparam monochrome true
+autonumber
+
+actor "Client 1" as C1
+actor "Client 2" as C2
+participant "HTTP Server (127.0.0.1:20123)" as S
+database "Filesystem (./www)" as FS
+
+== Запуск сервера ==
+S -> S: WSAStartup()
+S -> S: socket(), bind(:20123), listen()
+
+== Успешный GET-запрос ==
+C1 -> S: connect()
+C1 -> S: send("GET /index.html HTTP/1.1\r\n...")
+S -> FS: IsSafePath("/index.html")
+S -> FS: Чтение index.html
+FS --> S: Данные файла (200 OK)
+S -> C1: send("HTTP/1.1 200 OK\r\nContent-Length: ...\r\n\r\n<html>...")
+S -> C1: closesocket() (Connection: close)
+
+== Метод HEAD (без тела) ==
+C2 -> S: connect()
+C2 -> S: send("HEAD /test1k.txt HTTP/1.1\r\n...")
+S -> FS: Проверка размера test1k.txt
+S -> C2: send("HTTP/1.1 200 OK\r\nContent-Length: 1024\r\n\r\n")
+note right: Тело файла не передается
+
+== Аварийный сценарий: Защита от Directory Traversal ==
+C1 -> S: send("GET /../../windows/win.ini HTTP/1.1\r\n...")
+S -> S: IsSafePath() -> Блокировка выхода из www
+S -> C1: send("HTTP/1.1 404 Not Found\r\n\r\n")
+
+== Неподдерживаемый метод ==
+C2 -> S: send("POST /index.html HTTP/1.1\r\n...")
+S -> C2: send("HTTP/1.1 405 Method Not Allowed\r\n\r\n")
+@enduml
